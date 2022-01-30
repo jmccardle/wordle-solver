@@ -1,5 +1,6 @@
 from random import choice
 from collections import defaultdict
+from wordfreq import word_frequency
 
 def dictsum(d1, d2):
     """modifies d1 in place. Adds the values of each key."""
@@ -52,6 +53,19 @@ class Wordle:
         self.frequencies[len(self.words)][position] = letters
         return letters
 
+    def common_sort(self):
+        self.words.sort(key = lambda w: word_frequency(w, 'en'), reverse=True)
+
+    def max_freq_word(self, partial=1.0):
+        score = 0
+        w = None
+        for word in self.words[:int(partial * len(self.words))]:
+            t_score = self.letterwise_distrib_score(word)
+            if t_score > score:
+                score = t_score
+                w = word
+        return (w, score)
+
     def valid(self, word):
         """returns True or False if a word complies with results evaluated so far"""
         for i, letter in enumerate(word):
@@ -97,15 +111,33 @@ Use these characters:
         #print(f"Best: {results[0]}\nWorst: {results[-1]}")
         return results[0][0]
 
+    def meta_elimination(self, word):
+        players = []
+        for word in self.words:
+            clone = Wordle(self)
+            players.append(WordlePlayer(word, clone))
+        scores = [p.score_guess(word) for p in players]
+        return sum(scores)
+
     def fast_play(self):
         while len(self.words) > 1:
-            if len(self.words) > 500:
-                print("Selecting randomly.")
-                w = choice(self.words)
-            else:
+            if len(self.guesses) == 0:
+                print("Selecting static opener.")
+                w = 'sores'
+            elif len(self.words) > 300:
+                self.common_sort()
+                w, score = self.max_freq_word(partial=0.1)
+                print(f"Selecting on distribution in top 10% of common words (score={score}).")
+            elif len(self.words) > 200:
                 print("Selecting via metaevaluation.")
                 w = self.meta_evaluate()
-
+            else:
+                print("Here's what we know:")
+                self.common_sort()
+                for word in self.words:
+                    if word_frequency(word, 'en') == 0: break
+                    print(f"{word}\tWF:{word_frequency(word, 'en')*10e6:.1f} LF:{self.letterwise_distrib_score(word):.2f} Eliminations: {self.meta_elimination(word)}")
+                w=self.words[0]
             intext = input(f"({len(self.words)}) result of trying '{w}': ")
             self.evaluate(w, intext)
         return self.words[0]
@@ -168,6 +200,13 @@ class WordlePlayer:
                 best = reduction
                 best_word = w
         return (best_word, best)
+
+    def score_guess(self, word):
+        before = len(self.base_game.words)
+        g = Wordle(self.base_game)
+        g.evaluate(word, self.result(word))
+        after = len(g.words)
+        return before - after
 
     def __repr__(self):
         return f"<WordlePlayer answer={self.answer} game={self.base_game}>"
