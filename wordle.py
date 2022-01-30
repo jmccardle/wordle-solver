@@ -1,4 +1,10 @@
 from random import choice
+from collections import defaultdict
+
+def dictsum(d1, d2):
+    """modifies d1 in place. Adds the values of each key."""
+    for k in d2:
+        d1[k] += d2[k]
 
 class Wordle:
     """Represents a in progress game with undetermined answer"""
@@ -15,6 +21,7 @@ class Wordle:
         self.limited_letters = {}
         self.position_exclusions = [ [], [], [], [], [] ]
         self.guesses = {}
+        self.frequencies = {}
 
     def deepcopy(self, wordle):
         """copy all lists without entanglement"""
@@ -29,6 +36,21 @@ class Wordle:
             self.position_exclusions.append(l[::])
         self.guesses = {}
         self.guesses.update(wordle.guesses)
+
+    def letterfreq(self, position=None):
+        if len(self.words) in self.frequencies:
+            if position in self.frequencies[len(self.words)]:
+                return self.frequencies[len(self.words)][position]
+        else: self.frequencies[len(self.words)] = {}
+        letters = defaultdict(int)
+        if position is None:
+            [dictsum(letters, self.letterfreq(i)) for i in range(5)]
+            self.frequencies[len(self.words)][position] = letters
+            return letters
+        for w in self.words:
+            letters[w[position]] += 1
+        self.frequencies[len(self.words)][position] = letters
+        return letters
 
     def valid(self, word):
         """returns True or False if a word complies with results evaluated so far"""
@@ -87,7 +109,22 @@ Use these characters:
             intext = input(f"({len(self.words)}) result of trying '{w}': ")
             self.evaluate(w, intext)
         return self.words[0]
-        
+
+    def distrib_score(self, word):
+        frequencies = self.letterfreq()
+        denominator = sum(frequencies.values())
+        score = 0
+        for letter in word:
+            score += frequencies[letter] / denominator
+        return score
+
+    def letterwise_distrib_score(self, word):
+        frequencies = [self.letterfreq(i) for i in range(5)]
+        score = 0
+        for i, letter in enumerate(word):
+            denominator = sum(frequencies[i].values())
+            score += frequencies[i][letter] / denominator
+        return score
 
     def __repr__(self):
         return f"<Wordle {len(self.guesses)} guesses, {len(self.words)} possibilities>"
